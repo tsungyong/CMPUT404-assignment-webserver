@@ -32,6 +32,7 @@ class MyWebServer(SocketServer.BaseRequestHandler):
     
     STATUS_OK = "HTTP/1.1 200 OK"
     STATUS_NOT_FOUND = "HTTP/1.1 404 Not Found"
+    STATUS_REDIRECT = "HTTP/1.1 301 Moved Permanently"
 
     def handle(self):
 
@@ -41,6 +42,12 @@ class MyWebServer(SocketServer.BaseRequestHandler):
 
         response = ""
 
+        requestedFile = httpGetLine.split()[1]
+
+        requestedFilePath = os.path.join(os.getcwd(),
+                                         "www",
+                                         requestedFile[1:])
+
         requestedFilePath = self.getRequestedFilePath(httpGetLine)
         contentType = self.getContentType(requestedFilePath)
 
@@ -49,15 +56,26 @@ class MyWebServer(SocketServer.BaseRequestHandler):
                                    os.path.join(os.getcwd(), "www")) and
             os.path.exists(requestedFilePath)):
 
-            with open(requestedFilePath) as f:
+            # if the requested path is a directory, redirect with trailing /
+            if os.path.isdir(requestedFilePath):
 
                 response = ("%s\r\n"
-                            "Connection: close\r\n"
-                            "Content-Type: %s\r\n"
-                            "Content-Length: %s\r\n\r\n"
-                            "%s" %
-                            (self.STATUS_OK, contentType,
-                             os.path.getsize(requestedFilePath), f.read()))
+                            "Content-Type: text/html\r\n"
+                            "Location: %s/\r\n\r\n" %
+                            (self.STATUS_REDIRECT,
+                             requestedFile))
+
+            else:
+
+                with open(requestedFilePath) as f:
+
+                    response = ("%s\r\n"
+                                "Connection: close\r\n"
+                                "Content-Type: %s\r\n"
+                                "Content-Length: %s\r\n\r\n"
+                                "%s" %
+                                (self.STATUS_OK, contentType,
+                                 os.path.getsize(requestedFilePath), f.read()))
 
         # the path doesn't exist, so return 404 not found
         else:
@@ -79,9 +97,8 @@ class MyWebServer(SocketServer.BaseRequestHandler):
                                          requestedFile[1:])
 
         # if the requested path is a directory, serve the index file
-        if os.path.isdir(requestedFilePath):
-            requestedFilePath = os.path.join(requestedFilePath,
-                                                     "index.html")
+        if os.path.isdir(requestedFilePath) and requestedFilePath.endswith("/"):
+            requestedFilePath = os.path.join(requestedFilePath, "index.html")
 
         return requestedFilePath
 
